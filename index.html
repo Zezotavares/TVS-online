@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebTV Live - Modern Online TV App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            950: '#090d16',
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- HLS.js for .m3u8 playback -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .glow-effect {
+            box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-dark-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Header Navbar -->
+    <header class="bg-dark-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-tv text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide bg-gradient-to-r from-white via-slate-200 to-blue-400 bg-clip-text text-transparent">WebTV Live</h1>
+                <p class="text-xs text-slate-400 hidden sm:block">Streaming Online • GitHub Pages Ready</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm px-4 py-2 rounded-xl transition shadow-lg shadow-blue-600/20 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span class="hidden sm:inline">Adicionar Canal</span>
+            </button>
+            <button onclick="openInfoModal()" class="w-10 h-10 rounded-xl bg-dark-800 hover:bg-dark-700 text-slate-300 flex items-center justify-center transition border border-slate-700/50">
+                <i class="fa-solid fa-circle-info"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Layout Container -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Video Player Section (Left/Main on Desktop) -->
+        <div class="flex-1 flex flex-col p-4 lg:p-6 overflow-y-auto">
+            <!-- Player Wrapper -->
+            <div class="w-full max-w-6xl mx-auto flex flex-col gap-4">
+                
+                <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 glow-effect group">
+                    <!-- Video Element -->
+                    <video id="video-player" class="w-full h-full object-contain bg-black" controls playsinline></video>
+
+                    <!-- Loading / Error Overlay -->
+                    <div id="player-overlay" class="absolute inset-0 bg-dark-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 transition-opacity duration-300">
+                        <div class="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-4 animate-pulse">
+                            <i class="fa-solid fa-satellite-dish text-2xl"></i>
+                        </div>
+                        <h3 id="overlay-title" class="text-xl font-bold text-white mb-2">Selecione um canal</h3>
+                        <p id="overlay-desc" class="text-sm text-slate-400 max-w-md">Escolha um canal na lista ao lado para começar a transmitir ao vivo.</p>
+                    </div>
+
+                    <!-- Live Badge -->
+                    <div id="live-badge" class="absolute top-4 left-4 bg-red-600/90 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2 shadow-lg hidden">
+                        <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                        AO VIVO
+                    </div>
+                </div>
+
+                <!-- Current Channel Meta Bar -->
+                <div class="bg-dark-900/80 backdrop-blur-md border border-slate-800/80 p-4 lg:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div id="current-icon" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-blue-400 text-xl font-bold border border-slate-700">
+                            <i class="fa-solid fa-tv"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <h2 id="current-title" class="font-bold text-lg text-white">Nenhum canal selecionado</h2>
+                                <span id="current-category-badge" class="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 uppercase tracking-wide border border-slate-700">---</span>
+                            </div>
+                            <p id="current-desc" class="text-xs text-slate-400">Explore a barra lateral para ver as opções disponíveis.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button id="btn-favorite" onclick="toggleCurrentFavorite()" class="px-4 py-2 rounded-xl bg-dark-800 hover:bg-dark-700 border border-slate-700 text-slate-300 text-sm font-medium transition flex items-center gap-2">
+                            <i class="fa-regular fa-star text-amber-400" id="fav-icon"></i>
+                            <span>Favorito</span>
+                        </button>
+                        <button onclick="shareChannel()" class="px-4 py-2 rounded-xl bg-dark-800 hover:bg-dark-700 border border-slate-700 text-slate-300 text-sm font-medium transition flex items-center gap-2">
+                            <i class="fa-solid fa-share-nodes"></i>
+                            <span>Compartilhar</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Sidebar Channel List (Right/Bottom on Mobile) -->
+        <aside class="w-full lg:w-96 bg-dark-900/90 backdrop-blur-md border-t lg:border-t-0 lg:border-l border-slate-800 flex flex-col h-[50vh] lg:h-auto">
+            <!-- Search & Filters -->
+            <div class="p-4 border-b border-slate-800 flex flex-col gap-3">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                    </span>
+                    <input type="text" id="search-input" oninput="filterChannels()" placeholder="Pesquisar canais..." class="w-full bg-dark-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
+                </div>
+
+                <!-- Category Pills -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    <button onclick="filterCategory('all')" id="cat-all" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition">Todos</button>
+                    <button onclick="filterCategory('favorites')" id="cat-favorites" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition"><i class="fa-solid fa-star text-amber-400 mr-1"></i> Favoritos</button>
+                    <button onclick="filterCategory('Notícias')" id="cat-Notícias" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition">Notícias</button>
+                    <button onclick="filterCategory('Esportes')" id="cat-Esportes" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition">Esportes</button>
+                    <button onclick="filterCategory('Entretenimento')" id="cat-Entretenimento" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition">Filmes & Séries</button>
+                    <button onclick="filterCategory('Documentários')" id="cat-Documentários" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition">Documentários</button>
+                    <button onclick="filterCategory('Música')" id="cat-Música" class="category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition">Música</button>
+                </div>
+            </div>
+
+            <!-- Channels List Container -->
+            <div id="channels-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+                <!-- Dynamically populated -->
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Modal: Add Custom Channel -->
+    <div id="add-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                    <i class="fa-solid fa-plus text-blue-500"></i> Adicionar Novo Canal
+                </h3>
+                <button onclick="closeAddModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleCustomChannelSubmit(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Nome do Canal</label>
+                    <input type="text" id="custom-name" required placeholder="Ex: Minha TV Local" class="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">URL do Stream (.m3u8, .mp4, ou Embed)</label>
+                    <input type="url" id="custom-url" required placeholder="https://exemplo.com/stream.m3u8" class="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Categoria</label>
+                        <select id="custom-category" class="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                            <option value="Notícias">Notícias</option>
+                            <option value="Esportes">Esportes</option>
+                            <option value="Entretenimento">Filmes & Séries</option>
+                            <option value="Documentários">Documentários</option>
+                            <option value="Música">Música</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Ícone (FontAwesome)</label>
+                        <input type="text" id="custom-icon" value="fa-tv" placeholder="fa-film" class="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Descrição</label>
+                    <textarea id="custom-desc" rows="2" placeholder="Breve descrição sobre o conteúdo do canal..." class="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"></textarea>
+                </div>
+                <div class="pt-3 flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeAddModal()" class="px-5 py-2.5 rounded-xl bg-dark-800 hover:bg-dark-700 text-slate-300 text-sm font-medium transition">Cancelar</button>
+                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition shadow-lg shadow-blue-600/20">Salvar Canal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Info & GitHub Pages Guide -->
+    <div id="info-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-blue-500"></i> Sobre o WebTV Live
+                </h3>
+                <button onclick="closeInfoModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-sm text-slate-300 leading-relaxed">
+                <p>Este aplicativo foi desenvolvido em <strong>HTML5, Tailwind CSS e Vanilla JavaScript</strong>, sendo 100% otimizado para rodar diretamente no <strong class="text-white">GitHub Pages</strong>.</p>
+                
+                <div class="bg-dark-950 p-4 rounded-xl border border-slate-800">
+                    <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+                        <i class="fa-brands fa-github text-blue-400"></i> Como hospedar no GitHub Pages:
+                    </h4>
+                    <ol class="list-decimal list-inside space-y-1 text-slate-400 text-xs">
+                        <li>Crie um repositório público no GitHub.</li>
+                        <li>Salve este arquivo como <code class="text-blue-400 bg-dark-900 px-1 py-0.5 rounded">index.html</code> na raiz.</li>
+                        <li>Vá em <strong>Settings > Pages</strong> no seu repositório.</li>
+                        <li>Em Build and deployment, selecione a branch <code class="text-blue-400 bg-dark-900 px-1 py-0.5 rounded">main</code> (ou master) e clique em Save.</li>
+                    </ol>
+                </div>
+
+                <p class="text-xs text-slate-400">Seus canais personalizados são salvos automaticamente no navegador (<code class="text-slate-300">localStorage</code>), permitindo que você monte sua lista de favoritos e streams privados com total privacidade.</p>
+            </div>
+            <div class="px-6 py-4 bg-dark-950 border-t border-slate-800 flex justify-end">
+                <button onclick="closeInfoModal()" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application JavaScript -->
+    <script>
+        // Default Channels List (Sample legal public test streams & Web TV)
+        const defaultChannels = [
+            {
+                id: 'nasa-tv',
+                name: 'NASA TV HD',
+                category: 'Documentários',
+                url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-TV-HD-1/master.m3u8',
+                icon: 'fa-rocket',
+                desc: 'Transmissão ao vivo da agência espacial americana, lançamentos, operações na ISS e documentários científicos.'
+            },
+            {
+                id: 'big-buck-bunny',
+                name: 'Big Buck Bunny (Demo)',
+                category: 'Entretenimento',
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                icon: 'fa-film',
+                desc: 'Animação clássica de demonstração em alta definição (MP4).'
+            },
+            {
+                id: 'sintel-demo',
+                name: 'Sintel Open Movie',
+                category: 'Entretenimento',
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+                icon: 'fa-clapperboard',
+                desc: 'Filme de animação open-source produzido pelo Blender Institute.'
+            },
+            {
+                id: 'tears-of-steel',
+                name: 'Tears of Steel Sci-Fi',
+                category: 'Documentários',
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+                icon: 'fa-robot',
+                desc: 'Curta-metragem de ficção científica criado com efeitos visuais de ponta.'
+            }
+        ];
+
+        let channels = [];
+        let favorites = [];
+        let currentChannelId = null;
+        let currentCategory = 'all';
+        let hlsInstance = null;
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            loadStoredData();
+            renderChannels();
+            
+            // Play first channel by default if available
+            if (channels.length > 0) {
+                selectChannel(channels[0].id);
+            }
+        });
+
+        // Load channels and favorites from localStorage
+        function loadStoredData() {
+            const savedCustom = localStorage.getItem('webtv_custom_channels');
+            const customChannels = savedCustom ? JSON.parse(savedCustom) : [];
+            channels = [...defaultChannels, ...customChannels];
+
+            const savedFavs = localStorage.getItem('webtv_favorites');
+            favorites = savedFavs ? JSON.parse(savedFavs) : ['nasa-tv'];
+        }
+
+        // Save custom channels
+        function saveCustomChannels() {
+            const customOnly = channels.filter(c => !defaultChannels.some(d => d.id === c.id));
+            localStorage.setItem('webtv_custom_channels', JSON.stringify(customOnly));
+        }
+
+        // Save favorites
+        function saveFavorites() {
+            localStorage.setItem('webtv_favorites', JSON.stringify(favorites));
+        }
+
+        // Render Channel List
+        function renderChannels() {
+            const container = document.getElementById('channels-list');
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+
+            container.innerHTML = '';
+
+            let filtered = channels.filter(ch => {
+                const matchesSearch = ch.name.toLowerCase().includes(searchVal) || ch.category.toLowerCase().includes(searchVal);
+                if (currentCategory === 'all') return matchesSearch;
+                if (currentCategory === 'favorites') return matchesSearch && favorites.includes(ch.id);
+                return matchesSearch && ch.category === currentCategory;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 px-4 text-slate-500">
+                        <i class="fa-solid fa-face-grimace text-3xl mb-2"></i>
+                        <p class="text-sm">Nenhum canal encontrado.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(ch => {
+                const isFav = favorites.includes(ch.id);
+                const isSelected = currentChannelId === ch.id;
+
+                const item = document.createElement('div');
+                item.className = `group flex items-center justify-between p-3 rounded-xl cursor-pointer transition border ${
+                    isSelected 
+                        ? 'bg-blue-600/10 border-blue-500/50 text-white' 
+                        : 'bg-dark-950/40 border-slate-800/60 hover:bg-dark-800/60 text-slate-300'
+                }`;
+                item.onclick = () => selectChannel(ch.id);
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-lg ${isSelected ? 'bg-blue-600 text-white' : 'bg-dark-800 text-blue-400'} flex items-center justify-center shrink-0 transition">
+                            <i class="fa-solid ${ch.icon || 'fa-tv'}"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <h4 class="font-semibold text-sm truncate ${isSelected ? 'text-white' : 'text-slate-200'}">${ch.name}</h4>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wide">${ch.category}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="event.stopPropagation(); toggleFavorite('${ch.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-amber-400 transition">
+                            <i class="${isFav ? 'fa-solid text-amber-400' : 'fa-regular'} fa-star text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // Select and Play Channel
+        function selectChannel(id) {
+            const ch = channels.find(c => c.id === id);
+            if (!ch) return;
+
+            currentChannelId = id;
+            renderChannels();
+
+            // Update UI details
+            document.getElementById('current-title').textContent = ch.name;
+            document.getElementById('current-desc').textContent = ch.desc || 'Sem descrição informada.';
+            document.getElementById('current-category-badge').textContent = ch.category;
+            document.getElementById('current-icon').innerHTML = `<i class="fa-solid ${ch.icon || 'fa-tv'}"></i>`;
+
+            // Update favorite button state
+            updateFavoriteButtonUI();
+
+            // Play video stream
+            playStream(ch.url, ch.name);
+        }
+
+        // Play Stream logic supporting HLS and MP4
+        function playStream(url, name) {
+            const video = document.getElementById('video-player');
+            const overlay = document.getElementById('player-overlay');
+            const liveBadge = document.getElementById('live-badge');
+
+            // Reset overlay while loading
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'auto';
+            document.getElementById('overlay-title').textContent = `Carregando ${name}...`;
+            document.getElementById('overlay-desc').textContent = 'Estabelecendo conexão com o stream de vídeo.';
+            liveBadge.classList.add('hidden');
+
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
+
+            if (url.includes('.m3u8')) {
+                if (Hls.isSupported()) {
+                    hlsInstance = new Hls();
+                    hlsInstance.loadSource(url);
+                    hlsInstance.attachMedia(video);
+                    hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                        video.play().catch(e => console.log("Auto-play prevented:", e));
+                        hideOverlay();
+                    });
+                    hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                        if (data.fatal) {
+                            showErrorOverlay("Erro ao carregar stream HLS. O link pode estar offline ou protegido contra CORS.");
+                        }
+                    });
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    video.src = url;
+                    video.addEventListener('loadedmetadata', () => {
+                        video.play();
+                        hideOverlay();
+                    });
+                } else {
+                    showErrorOverlay("Seu navegador não suporta reprodução HLS nativa.");
+                }
+            } else {
+                // Direct MP4 or standard video
+                video.src = url;
+                video.load();
+                video.play().then(() => {
+                    hideOverlay();
+                }).catch(() => {
+                    showErrorOverlay("Falha ao reproduzir o arquivo de vídeo.");
+                });
+            }
+        }
+
+        function hideOverlay() {
+            const overlay = document.getElementById('player-overlay');
+            const liveBadge = document.getElementById('live-badge');
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+            liveBadge.classList.remove('hidden');
+        }
+
+        function showErrorOverlay(msg) {
+            const overlay = document.getElementById('player-overlay');
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'auto';
+            document.getElementById('overlay-title').textContent = 'Erro de Transmissão';
+            document.getElementById('overlay-desc').textContent = msg;
+            document.getElementById('live-badge').classList.add('hidden');
+        }
+
+        // Category Filter
+        function filterCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-pill').forEach(btn => {
+                btn.className = "category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-dark-800 text-slate-400 hover:bg-dark-700 hover:text-white transition";
+            });
+            const activeBtn = document.getElementById(`cat-${cat}`);
+            if (activeBtn) {
+                activeBtn.className = "category-pill whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition";
+            }
+            renderChannels();
+        }
+
+        function filterChannels() {
+            renderChannels();
+        }
+
+        // Favorites
+        function toggleFavorite(id) {
+            if (favorites.includes(id)) {
+                favorites = favorites.filter(fav => fav !== id);
+                showToast("Canal removido dos favoritos", "info");
+            } else {
+                favorites.push(id);
+                showToast("Canal adicionado aos favoritos!", "success");
+            }
+            saveFavorites();
+            renderChannels();
+            updateFavoriteButtonUI();
+        }
+
+        function toggleCurrentFavorite() {
+            if (currentChannelId) {
+                toggleFavorite(currentChannelId);
+            }
+        }
+
+        function updateFavoriteButtonUI() {
+            const favIcon = document.getElementById('fav-icon');
+            if (favorites.includes(currentChannelId)) {
+                favIcon.className = "fa-solid fa-star text-amber-400";
+            } else {
+                favIcon.className = "fa-regular fa-star text-amber-400";
+            }
+        }
+
+        // Share Channel Link
+        function shareChannel() {
+            const ch = channels.find(c => c.id === currentChannelId);
+            if (!ch) return;
+            const text = `Estou assistindo a ${ch.name} no WebTV Live!`;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(window.location.href);
+                showToast("Link da página copiado para a área de transferência!", "success");
+            } else {
+                showToast(text, "info");
+            }
+        }
+
+        // Modals management
+        function openAddModal() {
+            document.getElementById('add-modal').classList.remove('hidden');
+            document.getElementById('add-modal').classList.add('flex');
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.remove('flex');
+            document.getElementById('add-modal').classList.add('hidden');
+        }
+
+        function openInfoModal() {
+            document.getElementById('info-modal').classList.remove('hidden');
+            document.getElementById('info-modal').classList.add('flex');
+        }
+
+        function closeInfoModal() {
+            document.getElementById('info-modal').classList.remove('flex');
+            document.getElementById('info-modal').classList.add('hidden');
+        }
+
+        // Handle Custom Channel Form
+        function handleCustomChannelSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('custom-name').value.trim();
+            const url = document.getElementById('custom-url').value.trim();
+            const category = document.getElementById('custom-category').value;
+            const icon = document.getElementById('custom-icon').value.trim() || 'fa-tv';
+            const desc = document.getElementById('custom-desc').value.trim();
+
+            const newId = 'custom-' + Date.now();
+            const newChannel = { id: newId, name, url, category, icon, desc };
+
+            channels.push(newChannel);
+            saveCustomChannels();
+            renderChannels();
+            closeAddModal();
+
+            // Reset form
+            e.target.reset();
+            selectChannel(newId);
+            showToast("Canal adicionado com sucesso!", "success");
+        }
+
+        // Toast Notification System
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl border text-sm font-medium shadow-xl flex items-center gap-3 transition-all duration-300 translate-y-2 opacity-0 ${
+                type === 'success' 
+                    ? 'bg-dark-900 border-emerald-500/30 text-emerald-300' 
+                    : 'bg-dark-900 border-blue-500/30 text-blue-300'
+            }`;
+            toast.innerHTML = `
+                <i class="fa-solid ${type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-info text-blue-400'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
